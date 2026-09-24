@@ -1,6 +1,6 @@
 <div align="center">
 
-# Crucix
+# Gainopia
 
 **Your own intelligence terminal. 27 sources. One command. Zero cloud.**
 
