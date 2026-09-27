@@ -81,3 +81,23 @@ cp .env.example .env
 
 # 4. Start the dashboard
 npm run dev
+If npm run dev fails silently (exits with no output), run Node directly instead:Bashnode --trace-warnings server.mjs
+This bypasses npm's script runner, which can suppress errors on certain systems (particularly PowerShell on Windows). You can also run node diag.mjs to check your Node version, test module imports, and verify port availability. See Troubleshooting for more.The dashboard opens automatically at http://localhost:3117 and immediately begins its first intelligence sweep (taking 30–60 seconds). After that, it auto-refreshes every 15 minutes via SSE (Server-Sent Events).Requirements: Node.js 22+ (uses native fetch, top-level await, ESM)Docker DeploymentBashgit clone [https://github.com/calesthio/Crucix.git](https://github.com/calesthio/Crucix.git)
+cd Crucix
+cp .env.example .env    # add your API keys
+docker compose up -d
+Dashboard available at http://localhost:3117. Sweep data persists in ./runs/ via volume mount.What You Get🎛️ Live DashboardA self-contained Jarvis-style HUD featuring:3D WebGL Globe (Globe.gl) with atmosphere glow, star field, and smooth rotation (plus a classic flat map toggle).9 Marker Types: Fire detections, air traffic, radiation sites, maritime chokepoints, SDR receivers, OSINT events, health alerts, geolocated news, and conflict events.Animated 3D Flight Corridors and region filters (World, Americas, Europe, Middle East, Asia Pacific, Africa).Live Financials & Risk Gauges: Indexes, crypto, energy, commodities via Yahoo Finance, VIX, high-yield spreads, and supply chain pressure.Real-time Feeds: Curated OSINT Telegram posts, news ticker, sweep delta change tracking, and nuclear/space watches.⚡ Performance Modes (VISUALS FULL / VISUALS LITE)The top-bar toggle adjusts rendering behavior without sacrificing data coverage or sweep frequency:VISUALS LITE: Disables heavy background overlays, scanlines, backdrop blurs, globe auto-rotation, and continuous marquee animations, converting feeds into clean scrollable lists. Automatically applied on mobile devices.🤖 Two-Way Bot IntegrationTelegram: Commands like /status, /sweep, /brief, /portfolio, /alerts, and /mute.Discord: Slash commands, rich color-coded embeds (FLASH/PRIORITY/ROUTINE), and zero-dependency webhook support.API Keys SetupCopy .env.example to .env at the root. Core economic and satellite data require three free keys:KeySourceHow to GetFRED_API_KEYFederal Reserve Economic Datafred.stlouisfed.orgFIRMS_MAP_KEYNASA FIRMS (Satellite Fires)firms.modaps.eosdis.nasa.govEIA_API_KEYUS Energy Information Adminapi.eia.gov(Optional keys for ACLED, AISStream, ADS-B Exchange, LLM providers, and bots are fully documented in .env.example). Crucix works with zero API keys out of the box; unconfigured sources gracefully return structured errors while the rest of the sweep completes successfully.Architecturecrucix/
+├── server.mjs                 # Express dev server & SSE orchestrator
+├── crucix.config.mjs          # Configuration & delta thresholds
+├── apis/
+│   ├── briefing.mjs           # Master orchestrator (27 parallel feeds)
+│   └── sources/               # 27 modular source integrations
+├── dashboard/
+│   └── public/jarvis.html     # Self-contained Jarvis HUD
+├── lib/
+│   ├── llm/                   # 8 LLM provider abstractions (pure fetch)
+│   ├── delta/                 # Cross-sweep change tracking & memory
+│   └── alerts/                # Telegram & Discord bot handlers
+└── runs/                      # Runtime data & daily archives
+Troubleshootingnpm run dev exits silently: Use node --trace-warnings server.mjs or node diag.mjs to view direct stack traces.Port 3117 in use: Kill existing background processes (taskkill /F /IM node.exe on Windows or lsof -ti:3117 | xargs kill on Unix) or change PORT in your .env.Empty panels on first load: Normal behavior while the initial 30–60 second parallel source sweep completes.Contact & ContributingContact: celesthioailabs@gmail.comIssues / Contributions: Please open a GitHub issue or pull request. Review CONTRIBUTING.md for guidelines.Star HistoryLicenseAGPL-3.0
+***
