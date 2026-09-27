@@ -1,6 +1,6 @@
 <div align="center">
 
-# Gainopia
+# Crucix
 
 **Your own intelligence terminal. 27 sources. One command. Zero cloud.**
 
@@ -186,10 +186,10 @@ Alerts are delivered as rich embeds with color-coded sidebars: red for FLASH, ye
 **Optional dependency:** The full bot requires `discord.js`. Install it with `npm install discord.js`. If it's not installed, Crucix automatically falls back to webhook-only mode.
 
 ### Optional LLM Layer
-Connect any of 8 LLM providers for enhanced analysis:
+Connect any of 9 LLM providers for enhanced analysis:
 - **AI trade ideas** — quantitative analyst producing 5-8 actionable ideas citing specific data
 - **Smarter alert evaluation** — LLM classifies signals into FLASH/PRIORITY/ROUTINE tiers with cross-domain correlation and confidence scoring
-- Providers: Anthropic Claude, OpenAI, Google Gemini, OpenRouter (Unified API), OpenAI Codex (ChatGPT subscription), MiniMax, Mistral, Grok
+- Providers: Anthropic Claude, OpenAI, Google Gemini, OpenRouter (Unified API), OpenAI Codex (ChatGPT subscription), MiniMax, Mistral, Grok, Ollama
 - Graceful fallback — when LLM is unavailable, a rule-based engine takes over alert evaluation. LLM failures never crash the sweep cycle.
 
 ---
@@ -222,7 +222,7 @@ These three unlock the most valuable economic and satellite data. Each takes abo
 
 ### LLM Provider (optional, for AI-enhanced ideas)
 
-Set `LLM_PROVIDER` to one of: `anthropic`, `openai`, `gemini`, `codex`, `openrouter`, `minimax`, `mistral`, `grok`
+Set `LLM_PROVIDER` to one of: `anthropic`, `openai`, `gemini`, `codex`, `openrouter`, `minimax`, `mistral`, `ollama`, `grok`
 
 | Provider | Key Required | Default Model |
 |----------|-------------|---------------|
@@ -233,9 +233,12 @@ Set `LLM_PROVIDER` to one of: `anthropic`, `openai`, `gemini`, `codex`, `openrou
 | `codex` | None (uses `~/.codex/auth.json`) | gpt-5.3-codex |
 | `minimax` | `LLM_API_KEY` | MiniMax-M2.5 |
 | `mistral` | `LLM_API_KEY` | mistral-large-latest |
+| `ollama` | None (local, self-hosted) | llama3.1:8b |
 | `grok` | `LLM_API_KEY` | grok-4-latest |
 
 For Codex, run `npx @openai/codex login` to authenticate via your ChatGPT subscription.
+
+For Ollama, set `OLLAMA_BASE_URL` to your local instance (default: `http://localhost:11434`).
 
 ### Telegram Bot + Alerts (optional)
 
@@ -300,10 +303,11 @@ crucix/
 ├── dashboard/
 │   ├── inject.mjs             # Data synthesis + standalone HTML injection
 │   └── public/
-│       └── jarvis.html        # Self-contained Jarvis HUD
+│       ├── jarvis.html        # Self-contained Jarvis HUD
+│       └── loading.html       # Loading screen shown during first sweep
 │
 ├── lib/
-│   ├── llm/                   # LLM abstraction (8 providers, raw fetch, no SDKs)
+│   ├── llm/                   # LLM abstraction (9 providers, raw fetch, no SDKs)
 │   │   ├── provider.mjs       # Base class
 │   │   ├── anthropic.mjs      # Claude
 │   │   ├── openai.mjs         # GPT
@@ -313,12 +317,14 @@ crucix/
 │   │   ├── codex.mjs          # Codex (ChatGPT subscription)
 │   │   ├── minimax.mjs        # MiniMax (M2.5, 204K context)
 │   │   ├── mistral.mjs        # Mistral AI
+│   │   ├── ollama.mjs         # Ollama (local, self-hosted)
 │   │   ├── ideas.mjs          # LLM-powered trade idea generation
 │   │   └── index.mjs          # Factory: createLLMProvider()
 │   ├── delta/                 # Change tracking between sweeps
 │   │   ├── engine.mjs         # Delta computation — semantic dedup, configurable thresholds, severity scoring
 │   │   ├── memory.mjs         # Hot memory (3 runs, atomic writes) + cold storage (daily archives)
 │   │   └── index.mjs          # Re-exports
+│   ├── i18n.mjs               # Internationalization support
 │   └── alerts/
 │       ├── telegram.mjs       # Multi-tier alerts (FLASH/PRIORITY/ROUTINE) + two-way bot commands
 │       └── discord.mjs        # Discord bot (slash commands, rich embeds) + webhook fallback
@@ -414,9 +420,10 @@ All settings are in `.env` with sensible defaults:
 |----------|---------|-------------|
 | `PORT` | `3117` | Dashboard server port |
 | `REFRESH_INTERVAL_MINUTES` | `15` | Auto-refresh interval |
-| `LLM_PROVIDER` | disabled | `anthropic`, `openai`, `gemini`, `codex`, `openrouter`, `minimax`, `mistral`, or `grok` |
-| `LLM_API_KEY` | — | API key (not needed for codex) |
+| `LLM_PROVIDER` | disabled | `anthropic`, `openai`, `gemini`, `codex`, `openrouter`, `minimax`, `mistral`, `ollama`, or `grok` |
+| `LLM_API_KEY` | — | API key (not needed for codex or ollama) |
 | `LLM_MODEL` | per-provider default | Override model selection |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama instance URL (if using local LLM) |
 | `TELEGRAM_BOT_TOKEN` | disabled | For Telegram alerts + bot commands |
 | `TELEGRAM_CHAT_ID` | — | Your Telegram chat ID |
 | `TELEGRAM_CHANNELS` | — | Extra channel IDs to monitor (comma-separated) |
@@ -436,9 +443,10 @@ When running `npm run dev`:
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /` | Jarvis HUD dashboard |
+| `GET /` | Jarvis HUD dashboard (shows loading.html until first sweep completes) |
 | `GET /api/data` | Current synthesized intelligence data (JSON) |
 | `GET /api/health` | Server status, uptime, source count, LLM status |
+| `GET /api/locales` | Available language/locale options |
 | `GET /events` | SSE stream for live push updates |
 
 ---
@@ -487,9 +495,9 @@ node --version
 ```
 Crucix requires Node.js 22 or later. If you have an older version, download the latest LTS from [nodejs.org](https://nodejs.org/).
 
-### Dashboard shows empty panels after first start
+### Dashboard shows empty panels or loading screen after first start
 
-This is normal — the first sweep takes 30–60 seconds to query all 27 sources. The dashboard will populate automatically once the sweep completes. Check the terminal for sweep progress logs.
+This is normal — the first sweep takes 30–60 seconds to query all 27 sources. The dashboard will populate automatically once the sweep completes and pushes the first data update via SSE. Check the terminal for sweep progress logs. The loading screen displays until the first sweep finishes.
 
 ### Some sources show errors
 
@@ -510,6 +518,15 @@ Check these in order:
 4. Confirm the bot was invited with `bot` + `applications.commands` scopes and has `Send Messages` + `Embed Links` permissions in the target channel
 5. Check server logs for `[Discord] Bot logged in as ...` on startup. If you see `[Discord] discord.js not installed`, install it and restart
 6. **Webhook-only fallback:** If you just want alerts without slash commands, set `DISCORD_WEBHOOK_URL` instead of the bot token. No `discord.js` needed.
+
+### LLM provider errors or failures
+
+If LLM features fail:
+- Check that your API key for the chosen provider is valid and has sufficient credits
+- Verify the provider endpoint is reachable (check network/firewall)
+- For Ollama, ensure the service is running at the configured `OLLAMA_BASE_URL`
+- LLM failures are non-fatal — the sweep continues and falls back to rule-based alerting
+- Check `node server.mjs` console output for detailed error messages from the LLM layer
 
 ---
 
